@@ -1,57 +1,40 @@
-import { useState, useEffect } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getDatabase, ref, onValue, push, set, remove } from 'firebase/database';
-import {
-    Container,
-    Box,
-    TextField,
-    Button,
-    Typography,
-    List,
-    ListItem,
-    ListItemText,
-    IconButton,
-    Paper,
-} from '@mui/material';
-import DeleteIcon from '@mui/icons-material/Delete';
-import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { useEffect } from 'react';
+import { Container, Typography, Paper, Box, Fade, CircularProgress } from '@mui/material';
+import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 
-// Firebase config (replace with your own project)
-const firebaseConfig = {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-    databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    appId: import.meta.env.VITE_FIREBASE_APP_ID,
-};
-
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+import { useAtom, useSetAtom } from 'jotai';
+import { LOADING_STATE } from './consts/loadingStates';
+import { TodoList } from './components/todoList';
+import { loadingStateAtom } from './state/globalAtoms';
+import { loginInfoAtom } from './state/globalAtoms';
+import { AddTodo } from './components/addTodo';
+import { firebaseAuth } from './lib/firebase';
 
 const App = () => {
-    const [todos, setTodos] = useState<{ id: string; text: string }[]>([]);
-    const [input, setInput] = useState('');
-    // @ts-ignore
-    const [user, setUser] = useState<null | object>(null);
-    const auth = getAuth(app);
+    const setLoginInfo = useSetAtom(loginInfoAtom);
+    const [loadingState, setLoadingState] = useAtom(loadingStateAtom);
 
     // Sign in anonymously on mount
     useEffect(() => {
         const login = async () => {
-            const test = await signInAnonymously(auth);
+            try {
+                const loginInfo = await signInAnonymously(firebaseAuth);
 
-            console.log(test);
+                setLoginInfo(loginInfo?.user);
+                setLoadingState(LOADING_STATE.COMPLETE);
+            } catch (error) {
+                console.error(error);
+                setLoadingState(LOADING_STATE.ERROR);
+            }
         };
 
         login();
     }, []);
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
-            if (user) {
-                setUser(user); // store user state
+        const unsubscribe = onAuthStateChanged(firebaseAuth, (loginInfo) => {
+            if (loginInfo) {
+                setLoginInfo(loginInfo);
             }
         });
 
@@ -60,74 +43,37 @@ const App = () => {
         };
     }, []);
 
-    useEffect(() => {
-        const todosRef = ref(db, 'todos');
-        const unsubscribe = onValue(todosRef, (snapshot) => {
-            const data = snapshot.val();
-            if (data) {
-                const parsed = Object.entries(data).map(([id, val]) => ({
-                    id,
-                    // @ts-ignore
-                    text: val.text,
-                }));
-                setTodos(parsed);
-            } else {
-                setTodos([]);
-            }
-        });
-
-        return () => {
-            unsubscribe();
-        };
-    }, []);
-
-    const handleAddTodo = () => {
-        if (!input.trim()) {
-            return;
-        }
-
-        const newTodoRef = push(ref(db, 'todos'));
-        set(newTodoRef, { text: input });
-        setInput('');
-    };
-
-    const handleDelete = (id: string) => {
-        const todoRef = ref(db, `todos/${id}`);
-        remove(todoRef);
-    };
+    if (loadingState === LOADING_STATE.LOGGING_IN) {
+        return (
+            <Container
+                sx={{
+                    height: '100vh',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: '#f9f9f9',
+                }}
+            >
+                <Fade in={true} timeout={800}>
+                    <Box textAlign="center">
+                        <CircularProgress size={60} thickness={5} />
+                        <Typography mt={2} fontWeight="medium">
+                            Logging in and loading todos...
+                        </Typography>
+                    </Box>
+                </Fade>
+            </Container>
+        );
+    }
 
     return (
-        <Container maxWidth="sm" sx={{ mt: 8 }}>
+        <Container sx={{ mt: 8 }}>
             <Paper elevation={3} sx={{ p: 4 }}>
                 <Typography variant="h4" gutterBottom>
                     📝 Collaborative Todo List
                 </Typography>
-                <Box sx={{ display: 'flex', gap: 2, mb: 4 }}>
-                    <TextField
-                        fullWidth
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        label="Add a todo"
-                        variant="outlined"
-                    />
-                    <Button variant="contained" onClick={handleAddTodo}>
-                        Add
-                    </Button>
-                </Box>
-                <List>
-                    {todos.map((todo) => (
-                        <ListItem
-                            key={todo.id}
-                            secondaryAction={
-                                <IconButton edge="end" onClick={() => handleDelete(todo.id)}>
-                                    <DeleteIcon color="error" />
-                                </IconButton>
-                            }
-                        >
-                            <ListItemText primary={todo.text} />
-                        </ListItem>
-                    ))}
-                </List>
+                <AddTodo />
+                <TodoList />
             </Paper>
         </Container>
     );

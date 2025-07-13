@@ -1,0 +1,10 @@
+const LOADING_STATE = {
+    LOGGING_IN: 'LOGGING_IN',
+    LOADING_TODOS: 'LOADING_TODOS',
+    COMPLETE: 'COMPLETE',
+    ERROR: 'ERROR',
+} as const;
+
+export {
+    LOADING_STATE,
+};
