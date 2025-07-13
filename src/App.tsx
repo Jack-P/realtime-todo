@@ -33,6 +33,7 @@ const db = getDatabase(app);
 const App = () => {
     const [todos, setTodos] = useState<{ id: string; text: string }[]>([]);
     const [input, setInput] = useState('');
+    // @ts-ignore
     const [user, setUser] = useState<null | object>(null);
     const auth = getAuth(app);
 
@@ -66,6 +67,7 @@ const App = () => {
             if (data) {
                 const parsed = Object.entries(data).map(([id, val]) => ({
                     id,
+                    // @ts-ignore
                     text: val.text,
                 }));
                 setTodos(parsed);
